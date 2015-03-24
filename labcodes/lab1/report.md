@@ -164,4 +164,277 @@ make debug
 layout prev
 si
 ```
+即可单步跟踪BIOS的执行。
+
+[练习2.2] 在初始化未做0x7c00设置实地址断点，测试断点正常。
+
+在tools/gdbinit 结尾加上
+```
+    set architecture i8086
+    layout prev
+    b *0x7C00
+    c
+    set architecture i386
+```
+
+运行"make debug"即可得
+```
+:call <SNR>107_SparkupNext()
+Breakpoint 2, 0x00007c00 in ?? ()
+
+=> 0x7c00:      cli    
+   0x7c01:      cld    
+   0x7c02:      xor    %eax,%eax
+   0x7c04:      mov    %eax,%ds
+   0x7c06:      mov    %eax,%es
+   0x7c08:      mov    %eax,%ss 
+   0x7c0a:      in     $0x64,%al
+   0x7c0c:      test   $0x2,%al
+   0x7c0e:      jne    0x7c0a
+   0x7c10:      mov    $0xd1,%al
+
+```
+
+[练习2.3]
+从0x7C00开始跟踪代码运行，将单步跟踪反汇编得到的代码与bootasm.S和bootblock.asm进行比较。
+
+```
+----------------
+IN: 
+    0x00007c00:  cli    
+    0x00007c01:  cld    
+    0x00007c02:  xor    %ax,%ax
+    0x00007c04:  mov    %ax,%ds
+    0x00007c06:  mov    %ax,%es
+    0x00007c08:  mov    %ax,%ss
+
+----------------
+IN: 
+0x00007c0a:  in     $0x64,%al
+
+----------------
+IN: 
+0x00007c0c:  test   $0x2,%al
+0x00007c0e:  jne    0x7c0a
+
+----------------
+IN: 
+0x00007c10:  mov    $0xd1,%al
+0x00007c12:  out    %al,$0x：wq64
+0x00007c14:  in     $0x64,%al
+0x00007c16:  test   $0x2,%al
+0x00007c18:  jne    0x7c14
+
+----------------
+IN: 
+0x00007c1a:  mov    $0xdf,%al
+0x00007c1c:  out    %al,$0x60
+0x00007c1e:  lgdtw  0x7c6c
+0x00007c23:  mov    %cr0,%eax
+0x00007c26:  or     $0x1,%eax
+0x00007c2a:  mov    %eax,%cr0
+
+----------------
+IN: 
+0x00007c2d:  ljmp   $0x8,$0x7c32
+
+----------------
+IN: 
+0x00007c32:  mov    $0x10,%ax
+0x00007c36:  mov    %eax,%ds
+
+----------------
+IN: 
+0x00007c38:  mov    %eax,%es
+
+----------------
+IN: 
+0x00007c3a:  mov    %eax,%fs
+0x00007c3c:  mov    %eax,%gs
+0x00007c3e:  mov    %eax,%ss
+
+----------------
+IN: 
+0x00007c40:  mov    $0x0,%ebp
+
+----------------
+IN: 
+0x00007c45:  mov    $0x7c00,%esp
+0x00007c4a:  call   0x7cd3
+
+``
+可见其与bootasm.S和bootblock.asm中代码相同。
+
+
+##[练习3]
+BIOS将通过读取硬盘主引导扇区到内存，并转跳到对应内存中的位置执行bootloader。请分析bootloader是如何完成从实模式进入保护模式的。
+
+#为何开启A20，以及如何开启A20
+
+为何：很显然，在实模式下要访问高端内存区，这个开关必须打开，在保护模式下，由于使用32位地址线，如果A20恒等于0，那么系统只能访问奇数兆的内存，即只能访问0--1M、2-3M、4-5M......，这显然是不行的，所以在保护模式下，这个开关也必须打开。
+
+如何：
+```
+等待8042 Input buffer为空；
+发送Write 8042 Output Port （P2）命令到8042 Input buffer；
+等待8042 Input buffer为空；
+将8042 Output Port（P2）得到字节的第2位置1，然后写入8042 Input buffer；
+```
+
+#如何初始化GDT表
+
+一个简单的GDT表和其描述符已经静态储存在引导区中，载入即可
+```
+    lgdt gdtdesc
+```
+
+
+进入保护模式：通过将cr0寄存器PE位置1便开启了保护模式
+```
+	    movl %cr0, %eax
+	    orl $CR0_PE_ON, %eax
+	    movl %eax, %cr0
+```
+
+通过长跳转更新cs的基地址
+```
+	 ljmp $PROT_MODE_CSEG, $protcseg
+	.code32
+	protcseg:
+```
+
+设置段寄存器，并建立堆栈
+```
+	    movw $PROT_MODE_DSEG, %ax
+	    movw %ax, %ds
+	    movw %ax, %es
+	    movw %ax, %fs
+	    movw %ax, %gs
+	    movw %ax, %ss
+	    movl $0x0, %ebp
+	    movl $start, %esp
+```
+转到保护模式完成，进入boot主方法
+```
+	    call bootmain
+```
+
+##[练习4]
+
+[练习4.1]bootloader是如何读取硬盘扇区的？
+
+
+
+
+[练习4.2]bootloader是如何加载ELF格式的OS？
+
+首先看readsect函数，
+`readsect`从设备的第secno扇区读取数据到dst位置
+```
+	static void
+	readsect(void *dst, uint32_t secno) {
+	    waitdisk();
+	
+	    outb(0x1F2, 1);                         // 设置读取扇区的数目为1
+	    outb(0x1F3, secno & 0xFF);
+	    outb(0x1F4, (secno >> 8) & 0xFF);
+	    outb(0x1F5, (secno >> 16) & 0xFF);
+	    outb(0x1F6, ((secno >> 24) & 0xF) | 0xE0);
+	        // 上面四条指令联合制定了扇区号
+	        // 在这4个字节线联合构成的32位参数中
+	        //   29-31位强制设为1
+	        //   28位(=0)表示访问"Disk 0"
+	        //   0-27位是28位的偏移量
+	    outb(0x1F7, 0x20);                      // 0x20命令，读取扇区
+	
+	    waitdisk();
+
+	    insl(0x1F0, dst, SECTSIZE / 4);         // 读取到dst位置，
+	                                            // 幻数4因为这里以DW为单位
+	}
+```
+
+readseg简单包装了readsect，可以从设备读取任意长度的内容。
+```
+	static void
+	readseg(uintptr_t va, uint32_t count, uint32_t offset) {
+	    uintptr_t end_va = va + count;
+	
+	    va -= offset % SECTSIZE;
+	
+	    uint32_t secno = (offset / SECTSIZE) + 1; 
+	    // 加1因为0扇区被引导占用
+	    // ELF文件从1扇区开始
+	
+	    for (; va < end_va; va += SECTSIZE, secno ++) {
+	        readsect((void *)va, secno);
+	    }
+	}
+```
+
+在bootmain函数中，
+```
+	void
+	bootmain(void) {
+	    // 首先读取ELF的头部
+	    readseg((uintptr_t)ELFHDR, SECTSIZE * 8, 0);
+	
+	    // 通过储存在头部的幻数判断是否是合法的ELF文件
+	    if (ELFHDR->e_magic != ELF_MAGIC) {
+	        goto bad;
+	    }
+	
+	    struct proghdr *ph, *eph;
+	
+	    // ELF头部有描述ELF文件应加载到内存什么位置的描述表，
+	    // 先将描述表的头地址存在ph
+	    ph = (struct proghdr *)((uintptr_t)ELFHDR + ELFHDR->e_phoff);
+	    eph = ph + ELFHDR->e_phnum;
+	
+	    // 按照描述表将ELF文件中数据载入内存
+	    for (; ph < eph; ph ++) {
+	        readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
+	    }
+	    // ELF文件0x1000位置后面的0xd1ec比特被载入内存0x00100000
+	    // ELF文件0xf000位置后面的0x1d20比特被载入内存0x0010e000
+
+	    // 根据ELF头部储存的入口信息，找到内核的入口
+	    ((void (*)(void))(ELFHDR->e_entry & 0xFFFFFF))();
+	
+	bad:
+	    outw(0x8A00, 0x8A00);
+	    outw(0x8A00, 0x8E00);
+	    while (1);
+	}
+```
+
+##[练习5]
+实现函数调用堆栈跟踪函数
+
+```
+ebp:0x00007b08 eip:0x00100a67 args:0x00010094 0x00000000 0x00007b38 0x00100092 
+    kern/debug/kdebug.c:306: print_stackframe+21
+ebp:0x00007b18 eip:0x00100d5e args:0x00000000 0x00000000 0x00000000 0x00007b88 
+    kern/debug/kmonitor.c:125: mon_backtrace+10
+ebp:0x00007b38 eip:0x00100092 args:0x00000000 0x00007b60 0xffff0000 0x00007b64 
+    kern/init/init.c:48: grade_backtrace2+33
+ebp:0x00007b58 eip:0x001000bb args:0x00000000 0xffff0000 0x00007b84 0x00000029 
+    kern/init/init.c:53: grade_backtrace1+38
+ebp:0x00007b78 eip:0x001000d9 args:0x00000000 0x00100000 0xffff0000 0x0000001d 
+    kern/init/init.c:58: grade_backtrace0+23
+ebp:0x00007b98 eip:0x001000fe args:0x001032fc 0x001032e0 0x00001308 0x00000000 
+    kern/init/init.c:63: grade_backtrace+34
+ebp:0x00007bc8 eip:0x00100055 args:0x00000000 0x00000000 0x00000000 0x00010094 
+    kern/init/init.c:28: kern_init+84
+ebp:0x00007bf8 eip:0x00007d6a args:0xc031fcfa 0xc08ed88e 0x64e4d08e 0xfa7502a8 
+    <unknow>: -- 0x00007d69 --
+```
+可见其与题述一致。
+
+最后一行对应第一个使用堆栈的函数，bootmain.c中的bootmain。
+bootloader设置的堆栈从0x7c00开始，使用"call bootmain"转入bootmain函数。
+call指令压栈，故bootmain中ebp为0x7bf8。
+
+
+##[练习6]
 
