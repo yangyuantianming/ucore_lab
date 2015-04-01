@@ -1,9 +1,9 @@
-##OS lab2 report
+#OS lab2 report
 
-#[练习0]填写已有实验
+##[练习0]填写已有实验
 >运用meld对lab1的代码进行了移植。
 
-#[练习1]实现first-fit连续物理内存分配算法
+##[练习1]实现first-fit连续物理内存分配算法
 
 first-fit 算法实现主要在`kern/mm/default_pmm.c` 中。需要修改其中的三个函数：初始化`default_init_memmap`, 分配` default_alloc_pages`, 释放 `default_free_pages`.
 
@@ -15,7 +15,7 @@ first-fit 算法实现主要在`kern/mm/default_pmm.c` 中。需要修改其中�
 
 算法改进：尚未找到合适的算法。
 
-#[练习2]实现寻找虚拟地址对应的页表项
+##[练习2]实现寻找虚拟地址对应的页表项
 - 获取PDE
 - 若PDE不是当前`entry`, 则为页表分配新的页， 设置引用并用memset清零，设置权限。
 - 返回PTE， 即`return &((pte_t*)KADDR(PDE_ADDR(*pdep)))[PTX(la)]`。
