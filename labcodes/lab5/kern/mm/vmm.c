@@ -16,7 +16,7 @@
   There a linear link list for vma & a redblack link list for vma in mm.
 ---------------
   mm related functions:
-   golbal functions
+   global functions
      struct mm_struct * mm_create(void)
      void mm_destroy(struct mm_struct *mm)
      int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr)
@@ -434,7 +434,7 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     ret = -E_NO_MEM;
 
     pte_t *ptep=NULL;
-    /*LAB3 EXERCISE 1: YOUR CODE
+    /*LAB3 EXERCISE 1: 2012011331
     * Maybe you want help comment, BELOW comments can help you finish the code
     *
     * Some Useful MACROs and DEFINEs, you can use them in below implementation.
@@ -459,7 +459,7 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
 
     }
     else {
-    /*LAB3 EXERCISE 2: YOUR CODE
+    /*LAB3 EXERCISE 2: 2012011331
     * Now we think this pte is a  swap entry, we should load data from disk to a page with phy addr,
     * and map the phy addr with logical addr, trigger swap manager to record the access situation of this page.
     *
@@ -493,6 +493,32 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
         }
    }
 #endif
+    ptep = get_pte(mm->pgdir, addr, 1);
+    if(!ptep){
+        cprintf("get_pte in do_pgfault failed!\n");
+        return ret;
+    }
+    if(*ptep == 0){
+        if(!pgdir_alloc_page(mm->pgdir, addr, perm)){
+            cprintf("pgdir_alloc_page in do_pgfault failed!\n");
+            return ret;
+        }
+    }else{
+        if(swap_init_ok){
+            struct Page *page = NULL;
+            ret = swap_in(mm, addr, &page);
+            if(ret){
+                cprintf("swap_in in do_pgfault failed!\n");
+                return ret;
+            }
+            page_insert(mm->pgdir, page, addr, perm);
+            swap_map_swappable(mm, addr, page, 1);
+        }
+	else{
+            cprintf("no swap_init_ok but ptep is %x, failed!\n", *ptep);
+            return ret;
+        }
+    }
    ret = 0;
 failed:
     return ret;
