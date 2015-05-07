@@ -115,6 +115,20 @@ alloc_proc(void) {
         proc->cr3 = boot_cr3;
         proc->flags = 0;
         memset(proc->name, 0, PROC_NAME_LEN);
+
+        proc->wait_state = 0;
+        proc->cptr = NULL;
+        proc->optr = NULL;
+        proc->yptr = NULL;
+
+        proc->rq = NULL;
+        list_init(&(proc->run_link));
+        proc->time_slice = 0;
+        proc->lab6_run_pool.left = NULL;
+        proc->lab6_run_pool.parent = NULL;
+        proc->lab6_run_pool.right = NULL;
+        proc->lab6_stride = 0;
+        proc->lab6_priority = 0;
     }
     return proc;
 }
@@ -406,7 +420,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
         goto fork_out;
     }
     proc->parent = current;
-
+    assert(current->wait_state == 0);
     if(setup_kstack(proc) != 0){
         goto bad_fork_cleanup_proc;
     }
@@ -416,12 +430,11 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     copy_thread(proc, stack, tf);
     bool iflag;
     local_intr_save(iflag);
-
-    proc->pid = get_pid();
-    hash_proc(proc);
-    list_add(&proc_list, &(proc->list_link));
-    nr_process ++;
-
+    {
+        proc->pid = get_pid();
+        hash_proc(proc);
+        set_links(proc);
+    }   
     local_intr_restore(iflag);
     wakeup_proc(proc);
     ret = proc->pid;

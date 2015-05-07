@@ -59,6 +59,8 @@ idt_init(void) {
     for(i=0; i<sizeof(idt)/sizeof(struct gatedesc); i++){
         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
+    SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
+    SETGATE(idt[T_SYSCALL], 0, GD_KTEXT, __vectors[T_SYSCALL], DPL_USER);
     lidt(&idt_pd);
 }
 
@@ -191,7 +193,14 @@ trap_dispatch(struct trapframe *tf) {
     char c;
 
     int ret=0;
-
+    struct trapframe frame_k2u;
+    struct trapframe frame_u2k;
+    {
+        
+    };
+    {
+        
+    };
     switch (tf->tf_trapno) {
     case T_PGFLT:  //page fault
         if ((ret = pgfault_handler(tf)) != 0) {
@@ -217,16 +226,20 @@ trap_dispatch(struct trapframe *tf) {
     LAB3 : If some page replacement algorithm(such as CLOCK PRA) need tick to change the priority of pages,
     then you can add code here. 
 #endif
-        /* LAB1 YOUR CODE : 2012011331 */
+        /* LAB1 2012011331 : STEP 3 */
         /* handle the timer interrupt */
         /* (1) After a timer interrupt, you should record this event using a global variable (increase it), such as ticks in kern/driver/clock.c
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
         ticks ++;
+        /*
         if (ticks % TICK_NUM == 0) {
             print_ticks();
         }
+        */
+        assert(current != NULL);
+        sched_class_proc_tick(current);
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();
@@ -238,8 +251,30 @@ trap_dispatch(struct trapframe *tf) {
         break;
     //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
     case T_SWITCH_TOU:
+        if(tf->tf_cs != USER_CS){
+            frame_k2u = *tf;
+            frame_k2u.tf_cs = USER_CS;
+            frame_k2u.tf_ds = USER_DS;
+            frame_k2u.tf_es = USER_DS;
+            frame_k2u.tf_ss = USER_DS;
+            frame_k2u.tf_esp = (uint32_t)tf + sizeof(struct trapframe) - 8;
+            frame_k2u.tf_eflags |= FL_IOPL_MASK;
+
+            *((uint32_t*)tf - 1) = (uint32_t)& frame_k2u;
+        }
     case T_SWITCH_TOK:
-        panic("T_SWITCH_** ??\n");
+        /*panic("T_SWITCH_** ??\n");*/
+        if(tf->tf_cs != KERNEL_CS){
+            frame_u2k = *tf;
+            frame_u2k.tf_cs = KERNEL_CS;
+            frame_u2k.tf_ds = KERNEL_DS;
+            frame_u2k.tf_es = KERNEL_DS;
+            frame_u2k.tf_ss = KERNEL_DS;
+            frame_u2k.tf_esp = (uint32_t)tf - sizeof(struct  trapframe) + 8;
+            frame_u2k.tf_eflags &= ~FL_IOPL_MASK;
+
+            *((uint32_t*)tf - 1) = (uint32_t)& frame_u2k;
+        }
         break;
     case IRQ_OFFSET + IRQ_IDE1:
     case IRQ_OFFSET + IRQ_IDE2:

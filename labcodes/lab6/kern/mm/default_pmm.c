@@ -72,8 +72,8 @@ default_init_memmap(struct Page *base, size_t n) {
     for (; p != base + n; p ++) {
         assert(PageReserved(p));
         p->flags = 0;
-        SetPageProperty(p);
         p->property = 0;
+        SetPageProperty(p);
         set_page_ref(p, 0);
         list_add_before(&free_list, &(p->page_link));
     }
@@ -118,13 +118,13 @@ default_alloc_pages(size_t n) {
 static void
 default_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
-    assert(PageReserved(base));
+   //assert(PageReserved(base));
 
     list_entry_t *le = &free_list;
     struct Page * p;
     while((le=list_next(le)) != &free_list) {
       p = le2page(le, page_link);
-      if(p>base){
+      if(p >= base+n){
         break;
       }
     }
@@ -134,7 +134,7 @@ default_free_pages(struct Page *base, size_t n) {
     }
     base->flags = 0;
     set_page_ref(base, 0);
-    ClearPageProperty(base);
+    //ClearPageProperty(base);
     SetPageProperty(base);
     base->property = n;
     
