@@ -58,6 +58,10 @@ idt_init(void) {
     for(i=0; i<sizeof(idt)/sizeof(struct gatedesc); i++){
         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
     }
+    
+    SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
+    SETGATE(idt[T_SYSCALL], 1, GD_KTEXT, __vectors[T_SYSCALL], DPL_USER);
+
     lidt(&idt_pd);
 }
 
@@ -190,6 +194,8 @@ trap_dispatch(struct trapframe *tf) {
     char c;
 
     int ret=0;
+    struct trapframe frame_k2u;
+    struct trapframe frame_u2k;
 
     switch (tf->tf_trapno) {
     case T_PGFLT:  //page fault
@@ -224,7 +230,9 @@ trap_dispatch(struct trapframe *tf) {
          */
         ticks ++;
         if (ticks % TICK_NUM == 0) {
-            print_ticks();
+            //print_ticks();
+            assert(current);
+            current->need_resched = 1;
         }
         break;
     case IRQ_OFFSET + IRQ_COM1:
@@ -237,8 +245,29 @@ trap_dispatch(struct trapframe *tf) {
         break;
     //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
     case T_SWITCH_TOU:
+        if(tf->tf_cs != USER_CS){
+            frame_k2u = *tf;
+            frame_k2u.tf_cs = USER_CS;
+            frame_k2u.tf_ds = USER_DS;
+            frame_k2u.tf_es = USER_DS;
+            frame_k2u.tf_ss = USER_DS;
+            frame_k2u.tf_esp = (uint32_t)tf + sizeof(struct trapframe) -8;
+            frame_k2u.tf_eflags |= FL_IOPL_MASK;
+            *((uint32_t*) tf - 1) = (uint32_t)& frame_k2u;
+        }
+        break;
     case T_SWITCH_TOK:
-        panic("T_SWITCH_** ??\n");
+        if(tf->tf_cs != KERNEL_CS){
+            frame_u2k = *tf;
+            frame_u2k.tf_cs = KERNEL_CS;
+            frame_u2k.tf_ds = KERNEL_DS;
+            frame_u2k.tf_es = KERNEL_DS;
+            frame_u2k.tf_ss = KERNEL_DS;
+            frame_u2k.tf_esp = (uint32_t)tf - sizeof(struct trapframe) + 8;
+            frame_u2k.tf_eflags &= ~FL_IOPL_MASK;
+            *((uint32_t*)tf - 1) = (uint32_t)& frame_u2k;
+        }
+        //panic("T_SWITCH_** ??\n");
         break;
     case IRQ_OFFSET + IRQ_IDE1:
     case IRQ_OFFSET + IRQ_IDE2:

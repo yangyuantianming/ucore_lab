@@ -352,9 +352,9 @@ print_stackframe(void) {
     int i, j;
     for (i = 0; ebp != 0 && i < STACKFRAME_DEPTH; i ++) {
         cprintf("ebp:0x%08x eip:0x%08x args:", ebp, eip);
-        uint32_t *args = (uint32_t *)ebp + 2;
+        //uint32_t *args = (uint32_t *)ebp + 2;
         for (j = 0; j < 4; j ++) {
-            cprintf("0x%08x ", args[j]);
+            cprintf("0x%08x ", ((uint32_t*)ebp)[2 + j]);
         }
         cprintf("\n");
         print_debuginfo(eip - 1);

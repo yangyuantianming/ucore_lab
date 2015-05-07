@@ -70,10 +70,10 @@ _fifo_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick
      //(2)  set the addr of addr of this page to ptr_page
      /* Select the tail */
      list_entry_t *le = head->prev;
-     assert(head!=le);
+     //assert(head!=le);
      struct Page *p = le2page(le, pra_page_link);
      list_del(le);
-     assert(p !=NULL);
+     //assert(p !=NULL);
      *ptr_page = p;
      return 0;
 }
