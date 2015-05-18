@@ -195,12 +195,7 @@ trap_dispatch(struct trapframe *tf) {
     int ret=0;
     struct trapframe frame_k2u;
     struct trapframe frame_u2k;
-    {
-        
-    };
-    {
-        
-    };
+    
     switch (tf->tf_trapno) {
     case T_PGFLT:  //page fault
         if ((ret = pgfault_handler(tf)) != 0) {
@@ -239,7 +234,8 @@ trap_dispatch(struct trapframe *tf) {
         }
         */
         assert(current != NULL);
-        sched_class_proc_tick(current);
+        run_timer_list();
+       //sched_class_proc_tick(current);
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();
