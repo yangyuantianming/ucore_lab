@@ -32,7 +32,7 @@ unlock_files(struct files_struct *filesp) {
 //Called when a new proc init
 struct files_struct *
 files_create(void) {
-    //cprintf("[files_create]\n");
+    cprintf("[files_create]\n");
     static_assert((int)FILES_STRUCT_NENTRY > 128);
     struct files_struct *filesp;
     if ((filesp = kmalloc(sizeof(struct files_struct) + FILES_STRUCT_BUFSIZE)) != NULL) {
@@ -47,7 +47,7 @@ files_create(void) {
 //Called when a proc exit
 void
 files_destroy(struct files_struct *filesp) {
-//    cprintf("[files_destroy]\n");
+    cprintf("[files_destroy]\n");
     assert(filesp != NULL && files_count(filesp) == 0);
     if (filesp->pwd != NULL) {
         vop_ref_dec(filesp->pwd);
@@ -65,7 +65,7 @@ files_destroy(struct files_struct *filesp) {
 
 void
 files_closeall(struct files_struct *filesp) {
-//    cprintf("[files_closeall]\n");
+    cprintf("[files_closeall]\n");
     assert(filesp != NULL && files_count(filesp) > 0);
     int i;
     struct file *file = filesp->fd_array;
@@ -79,7 +79,7 @@ files_closeall(struct files_struct *filesp) {
 
 int
 dup_fs(struct files_struct *to, struct files_struct *from) {
-//    cprintf("[dup_fs]\n");
+    cprintf("[dup_fs]\n");
     assert(to != NULL && from != NULL);
     assert(files_count(to) == 0 && files_count(from) > 0);
     if ((to->pwd = from->pwd) != NULL) {

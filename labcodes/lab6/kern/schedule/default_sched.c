@@ -78,6 +78,7 @@ stride_enqueue(struct run_queue *rq, struct proc_struct *proc) {
     proc->rq = rq;
     rq->proc_num ++;
 }
+
 /*
  * stride_dequeue removes the process ``proc'' from the run-queue
  * ``rq'', the operation would be finished by the skew_heap_remove

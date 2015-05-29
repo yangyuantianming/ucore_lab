@@ -111,7 +111,7 @@ fd_array_close(struct file *file) {
 //fs_array_dup - duplicate file 'from'  to file 'to'
 void
 fd_array_dup(struct file *to, struct file *from) {
-    //cprintf("[fd_array_dup]from fd=%d, to fd=%d\n",from->fd, to->fd);
+    cprintf("[fd_array_dup]from fd=%d, to fd=%d\n",from->fd, to->fd);
     assert(to->status == FD_INIT && from->status == FD_OPENED);
     to->pos = from->pos;
     to->readable = from->readable;
